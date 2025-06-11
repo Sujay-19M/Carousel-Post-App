@@ -1,0 +1,6 @@
+{
+  "name": "AI Carousel Generator",
+  "description": "A web application that uses AI to generate content and images for carousel slides. Users can specify a topic and the number of slides, then view and download the generated carousel.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}

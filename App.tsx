@@ -136,27 +136,51 @@ const App: React.FC = () => {
   const commonHtml2CanvasOnClone = (clonedDoc: Document, elementToCapture: HTMLElement | null, originalElement: HTMLElement) => {
     const { body, documentElement: html } = clonedDoc;
     
+    // Preserve exact positioning and prevent shifting
     html.style.setProperty('height', 'auto', 'important');
     html.style.setProperty('overflow', 'hidden', 'important');
+    html.style.setProperty('position', 'static', 'important');
     body.style.setProperty('height', 'auto', 'important');
     body.style.setProperty('overflow', 'hidden', 'important');
     body.style.setProperty('margin', '0', 'important');
     body.style.setProperty('padding', '0', 'important');
     body.style.setProperty('transform', 'none', 'important');
-    body.style.setProperty('background', 'transparent', 'important'); // Ensure body is transparent
+    body.style.setProperty('background', 'transparent', 'important');
+    body.style.setProperty('position', 'static', 'important');
 
     if (elementToCapture) {
+        // Get computed styles from original element to preserve exact layout
+        const originalStyles = window.getComputedStyle(originalElement);
+        
         elementToCapture.style.setProperty('width', `${originalElement.offsetWidth}px`, 'important');
         elementToCapture.style.setProperty('height', `${originalElement.offsetHeight}px`, 'important');
         elementToCapture.style.setProperty('box-sizing', 'border-box', 'important');
         elementToCapture.style.setProperty('margin', '0', 'important');
+        elementToCapture.style.setProperty('padding', originalStyles.padding, 'important');
         elementToCapture.style.setProperty('transform', 'none', 'important');
-        const originalDisplay = window.getComputedStyle(originalElement).display;
-        elementToCapture.style.setProperty('display', originalDisplay, 'important');
+        elementToCapture.style.setProperty('position', 'relative', 'important');
+        elementToCapture.style.setProperty('top', '0', 'important');
+        elementToCapture.style.setProperty('left', '0', 'important');
+        elementToCapture.style.setProperty('display', originalStyles.display, 'important');
+        elementToCapture.style.setProperty('flex-direction', originalStyles.flexDirection, 'important');
+        elementToCapture.style.setProperty('align-items', originalStyles.alignItems, 'important');
+        elementToCapture.style.setProperty('justify-content', originalStyles.justifyContent, 'important');
+        
+        // Ensure all child elements maintain their positioning
+        const allElements = elementToCapture.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          const originalEl = originalElement.querySelector(`[data-capture-id="${Math.random()}"]`) || 
+                           originalElement.querySelectorAll('*')[Array.from(allElements).indexOf(el)];
+          if (originalEl) {
+            const childStyles = window.getComputedStyle(originalEl as Element);
+            htmlEl.style.setProperty('position', childStyles.position === 'fixed' ? 'absolute' : childStyles.position, 'important');
+            htmlEl.style.setProperty('transform', 'none', 'important');
+          }
+        });
     }
     
     // Ensure fonts are linked in the cloned document
-    // This replicates the @import rules from index.html
     const fontFamilies = [
         'Inter:wght@400;500;600;700;900',
         'Oswald:wght@400;500;600;700'
@@ -169,9 +193,23 @@ const App: React.FC = () => {
         clonedDoc.head.appendChild(link);
     });
 
-    // Add a general style to ensure Inter is applied as body font in clone
+    // Add comprehensive styles to prevent layout shifts
     const style = clonedDoc.createElement('style');
-    style.textContent = 'body { font-family: "Inter", sans-serif !important; }';
+    style.textContent = `
+      body { 
+        font-family: "Inter", sans-serif !important; 
+        line-height: 1.5 !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+      }
+      * { 
+        box-sizing: border-box !important; 
+        -webkit-transform: none !important;
+        transform: none !important;
+      }
+      .font-inter { font-family: "Inter", sans-serif !important; }
+      .font-oswald { font-family: "Oswald", sans-serif !important; }
+    `;
     clonedDoc.head.appendChild(style);
   };
 
@@ -183,6 +221,10 @@ const App: React.FC = () => {
     if (slideElement) {
       try {
         await document.fonts.ready; // Wait for fonts to be ready
+        
+        // Add a small delay to ensure all layout calculations are complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const canvas = await html2canvas(slideElement, { 
           useCORS: true, 
           allowTaint: true,
@@ -191,7 +233,15 @@ const App: React.FC = () => {
           x: 0, 
           y: 0,
           width: slideElement.offsetWidth, 
-          height: slideElement.offsetHeight, 
+          height: slideElement.offsetHeight,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: slideElement.offsetWidth,
+          windowHeight: slideElement.offsetHeight,
+          ignoreElements: (element) => {
+            // Ignore any elements that might cause positioning issues
+            return element.tagName === 'SCRIPT' || element.tagName === 'STYLE';
+          },
           onclone: (clonedDoc, clonedElement) => commonHtml2CanvasOnClone(clonedDoc, clonedElement as HTMLElement | null, slideElement)
         });
         const image = canvas.toDataURL('image/png', 1.0);
@@ -252,6 +302,9 @@ const App: React.FC = () => {
 
       if (slideElement) {
         try {
+          // Add a small delay to ensure all layout calculations are complete
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
           const canvas = await html2canvas(slideElement, { 
             useCORS: true, 
             allowTaint: true,
@@ -261,6 +314,13 @@ const App: React.FC = () => {
             y: 0,
             width: slideElement.offsetWidth, 
             height: slideElement.offsetHeight,
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: slideElement.offsetWidth,
+            windowHeight: slideElement.offsetHeight,
+            ignoreElements: (element) => {
+              return element.tagName === 'SCRIPT' || element.tagName === 'STYLE';
+            },
             onclone: (clonedDoc, clonedElement) => commonHtml2CanvasOnClone(clonedDoc, clonedElement as HTMLElement | null, slideElement)
           });
           const MimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
